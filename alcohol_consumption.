@@ -1,0 +1,871 @@
+Alcohol Consumption in Europe by Dominik Schraff
+========================================================
+```{r global_options, include=FALSE} 
+knitr::opts_chunk$set(fig.width=10, fig.height=6, fig.path='Figs/', echo=FALSE, 
+                      warning=FALSE, message=FALSE)
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, packages}
+# Load all of the packages that you end up using
+# in your analysis in this code chunk.
+
+# Notice that the parameter "echo" was set to FALSE for this code chunk.
+# This prevents the code from displaying in the knitted HTML output.
+# You should set echo=FALSE for all code chunks in your file.
+
+library(ggplot2)
+library(corrplot)
+library(coefficientalpha)
+library(plyr)
+```
+
+```{r echo=FALSE, Load_the_Data}
+# Load the Data
+setwd("C:/Users/Dominik/Documents/DataAnalyst_Nanodegree/Project4")
+ess_alc <- read.csv("ess7_alcohol_final.csv")
+
+```
+# The Data
+The following report provides an exploratory data analysis of data from wave 7 
+of the European Social Survey (ESS). The ESS is a large, cross-national survey
+on various aspects of Europeans' social and cultural life 
+(http://www.europeansocialsurvey.org/). This report focuses
+on a subset of this large dataset, analyzing alcohol consumption frequency
+across Europe. 
+
+The data covers 15 European countries, indexed by the 'cntry' variable.
+There are 9 further variables in the data. The variables have the 
+following meaning:
+
+stflife: How satisfied with life as a whole 
+(0-extremely dissatisfied to 10-extremely satisfied)
+
+happy: How happy are you? (0-extremely unhappy to 10-extremely happy)
+
+sclmeet: How often socially meet with friends, relatives, or collegues? 
+(1-Never to 7-Every Day)
+
+rlgdgr: How religious are you? (0-not at all religious to 10-very religious)
+
+alcfreq: How often drink alcohol? (1-Never to 7-Every Day; reversed scaling)
+
+gndr: Gender (1-Male, 2-Female)
+
+eduyrs: Years of full-time education completed
+
+hinctnta: Household's total net income, all sources 
+(1-1st decile to 10-10th decile)
+
+
+# Univariate Plots Section
+Let us start by describing the variables in our dataset.
+
+```{r echo=FALSE, Univariate_Plots}
+head(ess_alc)
+```
+I rename the variables to make labels more intuitiv.
+```{r echo=FALSE}
+names(ess_alc)[6] <- "Country"
+names(ess_alc)[7] <- "LifeSatisfaction"
+names(ess_alc)[8] <- "Happiness"
+names(ess_alc)[9] <- "SocialContactFrequency"
+names(ess_alc)[10] <- "Religiosity"
+names(ess_alc)[11] <- "AlcoholConsumptionFrequency"
+names(ess_alc)[12] <- "Gender"
+names(ess_alc)[13] <- "Age"
+names(ess_alc)[14] <- "YearsInEducation"
+names(ess_alc)[15] <- "NetHouseholdIncome"
+
+```
+```{r}
+summary(ess_alc)
+table(ess_alc$Country)
+```
+The countries' sample sizes vary between 1223-3045.
+```{r}
+ggplot(na.omit(ess_alc), aes(AlcoholConsumptionFrequency)) +
+  geom_histogram()
+```
+Note that the Likert-scaled variables have maximum values 
+which are strong outliers.
+These are codes for non-responses. I'll set these to NA!
+I also reverse the coding of the AlcoholConsumptionFrequency variable to 
+represent more alcohol consumption with higher values
+```{r echo=FALSE}
+ess_alc$LifeSatisfaction <- ifelse(ess_alc$LifeSatisfaction>10, NA, 
+                                   ess_alc$LifeSatisfaction)
+ess_alc$Happiness <- ifelse(ess_alc$Happiness>10, NA, ess_alc$Happiness)
+ess_alc$SocialContactFrequency <- ifelse(ess_alc$SocialContactFrequency>10, NA, 
+                          ess_alc$SocialContactFrequency)
+ess_alc$Religiosity <- ifelse(ess_alc$Religiosity>10, NA, ess_alc$Religiosity)
+ess_alc$AlcoholConsumptionFrequency <- 
+  ifelse(ess_alc$AlcoholConsumptionFrequency>10, NA, 
+         ess_alc$AlcoholConsumptionFrequency)
+ess_alc$AlcoholConsumptionFrequency <- 
+  abs((ess_alc$AlcoholConsumptionFrequency-1) - 6)+1
+
+
+ggplot(na.omit(ess_alc), aes(AlcoholConsumptionFrequency)) +
+  geom_histogram() +
+  geom_vline(aes(xintercept=mean(AlcoholConsumptionFrequency, na.rm=T), 
+                 color="Mean", linetype="Mean"), size=1, show.legend=TRUE) +
+  geom_vline(aes(xintercept=median(AlcoholConsumptionFrequency, na.rm=T), 
+                 color="Median", linetype="Median"), show.legend=TRUE)+
+  scale_colour_manual(name="Statistic", values=c(Mean="red", Median="blue")) +
+  scale_linetype_manual(name="Statistic", 
+                        values=c(Mean="dashed",Median="dashed"))
+```
+We see that the distribution of our main variable of interest is bimodal.
+The distribution does not peak around the mean, nor
+the median; rahter it peaks at 1 and 5.
+```{r echo=FALSE}
+ggplot(na.omit(ess_alc), aes(x=AlcoholConsumptionFrequency)) + geom_density() +
+  geom_vline(aes(xintercept=1), color="red", size=1, show_guide=TRUE) +
+  geom_vline(aes(xintercept=5), color="red", size=1, show_guide=TRUE)
+```
+Indeed, the density plot confirms this. Most respondents either report 
+alcohol consumption once a weak, or never.
+```{r echo=FALSE}
+
+ggplot(na.omit(ess_alc), aes(LifeSatisfaction)) +
+  geom_histogram() +
+  geom_vline(aes(xintercept=mean(LifeSatisfaction, na.rm=T), 
+                 color="Mean", linetype="Mean"), size=1, show.legend=TRUE) +
+  geom_vline(aes(xintercept=median(LifeSatisfaction, na.rm=T), 
+                 color="Median", linetype="Median"), show.legend=TRUE) +
+  scale_colour_manual(name="Statistic", values=c(Mean="red", Median="blue")) +
+  scale_linetype_manual(name="Statistic", 
+                        values=c(Mean="dashed",Median="dashed"))
+```
+Life satisfaction is skewed towards 10. This means that repondents tend to
+report rather high levels of satisfaction. The median response is at 8. 
+```{r echo=FALSE}
+
+ggplot(na.omit(ess_alc), aes(Happiness)) +
+  geom_histogram() +
+  geom_vline(aes(xintercept=mean(Happiness, na.rm=T), 
+                 color="Mean", linetype="Mean"), size=1, show.legend=TRUE) +
+  geom_vline(aes(xintercept=median(Happiness, na.rm=T), 
+                 color="Median", linetype="Median"), show.legend=TRUE) +
+  scale_colour_manual(name="Statistic", values=c(Mean="red", Median="blue")) +
+  scale_linetype_manual(name="Statistic", 
+                        values=c(Mean="dashed",Median="dashed"))
+```
+The distibution of Happiness follows closely the distribution of the 
+life satisfaction variable.
+```{r echo=FALSE}
+ggplot(na.omit(ess_alc), aes(color = )) + 
+  geom_density(aes(x=LifeSatisfaction, y = ..density.., color = "Satisfaction"), 
+              show.legend=TRUE) +
+  geom_density(aes(x=Happiness, y = ..density.., color = "Happy"), 
+               show.legend=TRUE) +
+  scale_colour_manual(name="Statistic", values=c(Satisfaction="red", 
+                                                 Happy="blue")) + 
+  xlab("")
+```
+Overlaying the two distributions in a density plot confirms that the two 
+variables follow a very similar distribution.
+This makes sense as the two variables might measure a similar concept,
+e.g. general life satisfaction.
+```{r echo=FALSE}
+
+ggplot(na.omit(ess_alc), aes(SocialContactFrequency)) +
+  geom_histogram() +
+  geom_vline(aes(xintercept=mean(SocialContactFrequency, na.rm=T), 
+                 color="Mean", linetype="Mean"), size=1, show.legend=TRUE) +
+  geom_vline(aes(xintercept=median(SocialContactFrequency, na.rm=T), 
+                 color="Median", linetype="Median"), show.legend=TRUE) +
+  scale_colour_manual(name="Statistic", values=c(Mean="red", Median="blue")) +
+  scale_linetype_manual(name="Statistic", 
+                        values=c(Mean="dashed",Median="dashed"))
+```
+The distribution of social contact frequency is also skewed to the right.
+Most responses are at the value 8, indicating that they meet with others 
+several times a week.
+```{r echo=FALSE}
+
+ggplot(na.omit(ess_alc), aes(Religiosity)) +
+  geom_histogram() +
+  geom_vline(aes(xintercept=mean(Religiosity, na.rm=T), 
+                 color="Mean", linetype="Mean"), size=1, show.legend=TRUE) +
+  geom_vline(aes(xintercept=median(Religiosity, na.rm=T), 
+                 color="Median", linetype="Median"), show.legend=TRUE) +
+  scale_colour_manual(name="Statistic", values=c(Mean="red", Median="blue")) +
+  scale_linetype_manual(name="Statistic", 
+                        values=c(Mean="dashed",Median="dashed"))
+```
+With religiosity, the mean is skewed to the left since there is a large 
+number of responses at zero, indicating that a substantial number of 
+respondents identify as 'not religious at all'. 
+```{r echo=FALSE}
+
+ess_alc$Gender <- ifelse(ess_alc$Gender>2, NA, ess_alc$Gender)
+ggplot(na.omit(ess_alc), aes(Gender)) +
+  geom_histogram()
+```
+There are a bit more female respondents in the sample.  
+```{r echo=FALSE}
+ess_alc$Age <- ifelse(ess_alc$Age>130, NA, ess_alc$Age)
+
+med_age <- median(ess_alc$Age, na.rm=T)
+
+ggplot(na.omit(ess_alc), aes(Age)) + 
+  geom_density(aes(y = ..density..), color = "black") +
+  geom_vline(aes(xintercept=mean(Age, na.rm=T), 
+                 color="Mean", linetype="Mean"), size=1, show.legend=TRUE) +
+  geom_vline(aes(xintercept=median(Age, na.rm=T), 
+                 color="Median", linetype="Median"), show.legend=TRUE) +
+  scale_colour_manual(name="Statistic", values=c(Mean="red", Median="blue")) +
+  scale_linetype_manual(name="Statistic", 
+                        values=c(Mean="dashed",Median="dashed")) +
+  geom_text(aes(median(Age, na.rm=T),0.001 ,label = "Median=49"), 
+            show.legend = F)
+```
+The age distribution in the sample is skewed towards older people.
+This makes sense as many European countries struggle with demographic change.
+The median age of a respondent is `r med_age` years.
+```{r echo=FALSE}
+
+ess_alc$NetHouseholdIncome <- ifelse(ess_alc$NetHouseholdIncome>10, NA, 
+                                     ess_alc$NetHouseholdIncome)
+
+ggplot(na.omit(ess_alc), aes(NetHouseholdIncome)) +
+  geom_histogram() +
+  geom_vline(aes(xintercept=mean(NetHouseholdIncome, na.rm=T), 
+                 color="Mean", linetype="Mean"), size=1, show.legend=TRUE) +
+  geom_vline(aes(xintercept=median(NetHouseholdIncome, na.rm=T), 
+                 color="Median", linetype="Median"), show.legend=TRUE) +
+  scale_colour_manual(name="Statistic", values=c(Mean="red", Median="blue")) +
+  scale_linetype_manual(name="Statistic", 
+                        values=c(Mean="dashed",Median="dashed"))
+```
+The household income is distributed rather uniformly across the deciles.
+Only the lowest and the two highest deciles occur clearly less frequent.
+```{r echo=FALSE}
+
+ess_alc$YearsInEducation <- ifelse(ess_alc$YearsInEducation>30, NA, 
+                                   ess_alc$YearsInEducation)
+ggplot(na.omit(ess_alc), aes(YearsInEducation)) +
+  geom_histogram() +
+  geom_vline(aes(xintercept=mean(YearsInEducation, na.rm=T), 
+                 color="Mean", linetype="Mean"), size=1, show.legend=TRUE) +
+  geom_vline(aes(xintercept=median(YearsInEducation, na.rm=T), 
+                 color="Median", linetype="Median"), show.legend=TRUE) +
+  scale_colour_manual(name="Statistic", values=c(Mean="red", Median="blue")) +
+  scale_linetype_manual(name="Statistic", 
+                        values=c(Mean="dashed",Median="dashed"))
+```
+The education years variable follows a clear normal distribution, with
+mean and median lying close together. 
+
+# Univariate Analysis
+
+### What is the structure of your dataset?
+I am using a subset of wave 7 of the European Social Survey (ESS). There are 
+`r nrow(ess_alc)` observations in the dataset. These observations cluster in 
+`r length(unique(ess_alc$Country))` European countries.
+
+
+### What is/are the main feature(s) of interest in your dataset?
+The main interest of my investigation is the (reported) frequency of alcohol 
+consumption and how it varies over the different countries in the data. 
+I suspect that some variables in the data are systematically related to the 
+frequency of alcohol consumption. Also, I believe that there are systematic 
+differences between countries.  
+
+
+### What other features in the dataset do you think will help support your 
+### investigation into your feature(s) of interest?
+I selected a set of variables from the ESS which I expect to be related to 
+alcohol consumption. Religiousity, for example, might be a determinant of 
+alcohol consumption. 
+But also measures of life satisfaction as well as socio-economic factors might 
+play a crucial role. 
+
+### Did you create any new variables from existing variables in the dataset?
+So far, I did not create any new variables. I will create a few new variables 
+during the bi- and multivariate analysis. 
+
+### Of the features you investigated, were there any unusual distributions? 
+### Did you perform any operations on the data to tidy, adjust, 
+### or change the form of the data? If so, why did you do this?
+I cleaned the survey items by flagging non-responses as NA's. 
+Also, I reversed the coding of the alcohol consumption 
+variable (AlcoholConsumptionFrequency), so that higher values 
+represent more consumption! 
+
+
+# Bivariate Plots Section
+We now are going to investigate relationships between pairs of variables.
+First, let us have a look at the pairwise correlations.
+
+```{r echo=FALSE, Bivariate_Plots}
+
+corr_mat <- cor(ess_alc[c(7:15)], use="pairwise.complete.obs")
+corrplot(corr_mat, method = "number", type = "lower", col="black", cl.pos="n", 
+         tl.cex = 0.6)
+
+```
+Generally, correlations are rather moderate.
+This is a common phenomenon with micro-level survey data.
+The correlation between life satisfaction and happieness is 
+very high (for micro-data). 
+```{r echo=FALSE}
+ggplot(na.omit(ess_alc), aes(x=LifeSatisfaction, y=Happiness)) +   
+    geom_smooth(method=lm)
+```
+The plot confirms a strong correlation. This makes sense as the two itmes are 
+closely related. It might be that the two items capture the same latent 
+phenomenon (general life satisfaction). 
+I test this with the well-known Cronbach's Alpha coefficient. 
+```{r echo=FALSE}
+alph <- alpha(ess_alc[c(7:8)], complete = T, test = F)
+```
+With `r alph$alpha`, the alpha coefficient is very high. This suggest that 
+LifeSatisfaction and Happiness capture the same phenomenon. 
+I therefore create an additive index 'GeneralSatisfaction', 
+consisting of the two variables.
+```{r echo=FALSE}
+ess_alc$GeneralSatisfaction <- (ess_alc$LifeSatisfaction + ess_alc$Happiness)/2
+
+ggplot(na.omit(ess_alc), aes(GeneralSatisfaction)) +
+  geom_histogram() +
+  geom_vline(aes(xintercept=mean(GeneralSatisfaction, na.rm=T), 
+                 color="Mean", linetype="Mean"), size=1, show.legend=TRUE) +
+  geom_vline(aes(xintercept=median(GeneralSatisfaction, na.rm=T), 
+                 color="Median", linetype="Median"), show.legend=TRUE) +
+  scale_colour_manual(name="Statistic", values=c(Mean="red", Median="blue")) +
+  scale_linetype_manual(name="Statistic", 
+                        values=c(Mean="dashed",Median="dashed"))
+```
+The distribution of the new variable mirrows closely the distribution of
+the Happieness and LifeSatisfaction variables.
+Let us now look how this new variable is related to alcohol consumption
+frequency. 
+
+```{r echo=FALSE}
+
+ggplot(na.omit(ess_alc), aes(x=GeneralSatisfaction, 
+                             y=AlcoholConsumptionFrequency)) +   
+    geom_smooth(method=lm)
+```
+We see that, on average, it seems that a higher general life satisfaction is 
+associated with more alcohol consumption. Yet, the previous plot assumes a 
+linear relationship between alcohol consumption and life satisfation. 
+What if we use a non-parametric smoothing method?
+```{r echo=FALSE}
+ggplot(na.omit(ess_alc), aes(x=GeneralSatisfaction, 
+                             y=AlcoholConsumptionFrequency)) +   
+    geom_smooth()
+```
+Indeed, we see that the relationship could be non-linear. At high levels of 
+life satisfaction, alcohol consumption decreases again. 
+
+Below, I repeat this analysis for the other potential preditors of
+alcohol consumption frequency. 
+
+```{r echo=FALSE}
+ggplot(na.omit(ess_alc), aes(x=SocialContactFrequency, 
+                             y=AlcoholConsumptionFrequency)) +   
+    geom_smooth(method=lm, aes(color = "linear")) + 
+    geom_smooth(method = "lm", formula = y ~ x + I(x^2), 
+                aes(color = "smooth")) +
+    scale_colour_manual(name="Fit", values=c(linear="red", smooth="blue"))
+```
+On average, SocialContactFrequency seems to be positivly related to 
+alcohol consumption. Yet, again there might be a non-linear relationship.
+At high levels of contact frequency, consumption seems to decrease again. 
+```{r echo=FALSE}
+
+ggplot(na.omit(ess_alc), aes(x=Religiosity, y=AlcoholConsumptionFrequency)) +   
+    geom_smooth(method=lm, aes(color = "linear")) + 
+    geom_smooth(method = "lm", formula = y ~ x + I(x^2), 
+                aes(color = "smooth")) +
+    scale_colour_manual(name="Fit", values=c(linear="red", smooth="blue"))
+
+```
+Alcohol consumption seems to decrease with increasing religiosity.
+This effects seems to be rather linear.
+```{r echo=FALSE}
+
+ggplot(na.omit(ess_alc), aes(x=Age, y=AlcoholConsumptionFrequency)) +   
+    geom_smooth(method=lm, aes(color = "linear")) + 
+    geom_smooth(aes(color = "smooth")) +
+    scale_colour_manual(name="Fit", values=c(linear="red", smooth="blue"))
+```
+The linear effect of age suggest a small, positive relationship to drinking
+frequency. Yet, the smoothed line indicates that there is a life-cycle 
+pattern, which follows the form of an inverse u-shaped relationship. 
+```{r echo=FALSE}
+
+ggplot(na.omit(ess_alc), aes(x=YearsInEducation, 
+                             y=AlcoholConsumptionFrequency)) +   
+    geom_smooth(method=lm, aes(color = "linear")) + 
+    geom_smooth(aes(color = "smooth")) +
+    scale_colour_manual(name="Fit", values=c(linear="red", smooth="blue"))
+```
+As the smoothed line strongly overlaps with the linear fit, education 
+has a clear linear effect on drinking frequency. 
+```{r echo=FALSE}
+
+ggplot(na.omit(ess_alc), aes(x=factor(Gender), y=AlcoholConsumptionFrequency, 
+                             fill=factor(Gender))) + 
+  geom_boxplot() +
+  scale_fill_discrete(name="Gender",
+                      breaks=c("1", "2"),
+                      labels=c("Male", "Female"))
+
+```
+The boxplot above shows that there seem to be gender differences in 
+alcohol consumption frequency. Male respondents report a higher level of
+consumption.
+
+A crucial question is whether such bivariate relationships hold across all
+countries. This will be an important question for the multivariate analysis.
+To lay the ground for such an analysis, I now provide some cross-country 
+comparisons of alcohol consumption frequency.
+```{r echo=FALSE}
+ggplot(na.omit(ess_alc), aes(x=factor(Country), y=..count.., 
+                             fill=factor(AlcoholConsumptionFrequency))) +
+  geom_bar() + coord_flip() +
+  scale_fill_discrete(name="AlcoholConsumptionFrequency",
+                      breaks=c("1", "2", "3", "4", "5", "6", "7"),
+                      labels=c("Never", "Less than once a month", 
+                               "Once a month", "2-3 times a month", 
+                               "Once a week", "Several times a week",
+                               "Every Day"))
+```
+In this plot we see that within a country, the relative size of a response
+category varies. For example, the most frequent response category in 
+the Netherlands (NL) is 'several times a week', while this category is less 
+important in Ireland (IE),
+where respondents more frequently report 'once a week'.
+```{r echo=FALSE}
+
+ess_alc$mean_alc <- ave(ess_alc$AlcoholConsumptionFrequency, ess_alc$Country, 
+                        FUN = function(x) mean(x, na.rm = T))
+ggplot(na.omit(ess_alc), aes(x=reorder(Country, mean_alc), 
+                             y=AlcoholConsumptionFrequency)) + 
+  stat_summary(fun.y=mean,geom="bar") +
+  coord_flip() 
+```
+The barchart above shows that average levels of drinking frequency vary across
+countries. Reported consumption frequency is highest in Denmark and lowest
+in Poland
+```{r echo=FALSE}
+
+ggplot(na.omit(ess_alc), aes(x=reorder(Country, mean_alc), 
+                             y=AlcoholConsumptionFrequency, 
+                             fill=factor(Country))) + 
+  geom_boxplot() 
+```
+In line with the previous plot, we see that average alcohol consumption 
+frequency strongly varies over countries. 
+It is highest in Denmark and lowest in Poland. 
+We can also present this pattern in form of a boxplot:
+
+
+# Bivariate Analysis
+
+### Talk about some of the relationships you observed in this part of the 
+###investigation. How did the feature(s) of interest vary with 
+###other features in the dataset?
+We could see that the average alcohol consumption freqeuncy varies over the 
+countries. It is highest in Denmark and lowest in Poland. 
+On average, we see that alcohol consumption increases with higher levels of 
+education and more frequent social contacts. I found that alcohol consumption 
+strongly increases with age, but only for respondents below the age of 30. 
+At 30, consumption frequency stagnates and remains rather stable over the 
+rest of the life-course, until it decreases again at ages above 60. 
+
+Alcohol consumption seems to be negatively related to respondents' level 
+of religiosity. The more religious Europeans are, the less they seem to drink. 
+Consumption frequency seems to be related to general life satisfaction. 
+At medium levels of satisfaction, there is a poitive relationship with 
+consumption frequency. Yet, at high levels of satisfaction, this relationship 
+flips into a negaive one. 
+
+Finally, there seem to be gender differences in consumption frequency. 
+Accordingly, the analysis suggests that male respondents drink more often. 
+
+
+### Did you observe any interesting relationships between the other features 
+###(not the main feature(s) of interest)?
+Yes, I realized that LifeSatisfaction and Happiness are two closely 
+related variables. 
+Using the Cronbach's Alpha coefficient, I could establish that the two 
+variables belong to the same concept. I therefore combined them in an additive
+index which I called general life satisfaction.
+
+### What was the strongest relationship you found?
+The relationship between gender and alcohol consumption frequency seems to be
+strongest. The correlation matrix reports a correlation coeffiecient of 
+`r cor(ess_alc[11], ess_alc[12], use = "na.or.complete")`.
+Generally, correlations seem to be rather weak. Yet, one has to consider that 
+correlations in such a micro-level survey dataset are usually smaller. 
+
+
+# Multivariate Plots Section
+For the pooled sample, we found that males drink more frequently.
+Is the higher drinking frequency among males valid for all countries in 
+the data?
+
+```{r echo=FALSE, Multivariate_Plots}
+aggdata <- aggregate(ess_alc[c(7:17)], by=list(as.factor(ess_alc$Country), 
+                                               as.factor(ess_alc$Gender)), 
+                     FUN=mean, na.rm=TRUE)
+aggdata$alc_tot <- by(aggdata$AlcoholConsumptionFrequency, aggdata$Group.1, sum)
+
+
+ggplot(aggdata, aes(x = factor(Group.1), 
+                    y = AlcoholConsumptionFrequency/alc_tot, fill = Group.2)) + 
+  geom_bar(stat = "identity") +
+  coord_flip()
+```
+We see that in all countries the average drinking frequency is higher 
+for males. It could be that there are also gender differences in the 
+effect of the other variables on drinking frequency.
+Below, I therefore plot the bivariate relationships identified before, 
+but separated by gender. Effectively, this is an investigation of potential 
+interaction effects. 
+```{r echo=FALSE}
+ggplot(na.omit(ess_alc), aes(x = SocialContactFrequency, 
+                             y = AlcoholConsumptionFrequency, 
+                             colour = factor(Gender))) + 
+  geom_smooth(method = "lm", formula = y ~ x) +
+  scale_colour_discrete(name="Gender",
+                    breaks=c("1", "2"),
+                    labels=c("Male", "Female"))
+```
+The slope for females is steeper. It therefore seems social contact
+frequency has a stronger effect among females.
+```{r echo=FALSE}
+
+ggplot(na.omit(ess_alc), aes(x = GeneralSatisfaction, 
+                             y = AlcoholConsumptionFrequency, 
+                             colour = factor(Gender))) + 
+  geom_smooth(method = "lm", formula = y ~ x) +
+  scale_colour_discrete(name="Gender",
+                    breaks=c("1", "2"),
+                    labels=c("Male", "Female"))
+```
+Also, the association between drinking frequency and life satisfaction
+seems to be stronger among females.
+```{r echo=FALSE}
+
+ggplot(na.omit(ess_alc), aes(x = Religiosity, 
+                             y = AlcoholConsumptionFrequency, 
+                             colour = factor(Gender))) + 
+  geom_smooth(method = "lm", formula = y ~ x) +
+  scale_colour_discrete(name="Gender",
+                    breaks=c("1", "2"),
+                    labels=c("Male", "Female"))
+```
+Contrarily, there seems to be no effect-heterogeneity with regard to 
+religiosity. 
+```{r echo=FALSE}
+
+ggplot(na.omit(ess_alc), aes(x = YearsInEducation, 
+                             y = AlcoholConsumptionFrequency, 
+                             colour = factor(Gender))) + 
+  geom_smooth(method = "lm", formula = y ~ x) +
+  scale_colour_discrete(name="Gender",
+                    breaks=c("1", "2"),
+                    labels=c("Male", "Female"))
+```
+Again, the effect of education seems to be stronger among females. With 
+higher levels of education, gender differences in drinking frequency narrow.
+```{r echo=FALSE}
+
+ggplot(na.omit(ess_alc), aes(x = NetHouseholdIncome, 
+                             y = AlcoholConsumptionFrequency, 
+                             colour = factor(Gender))) + 
+  geom_smooth(method = "lm", formula = y ~ x) +
+  scale_colour_discrete(name="Gender",
+                    breaks=c("1", "2"),
+                    labels=c("Male", "Female"))
+```
+There is no effect heterogeneity with NetHouseholdIncome.
+```{r echo=FALSE}
+
+ggplot(na.omit(ess_alc), aes(x = Age, 
+                             y = AlcoholConsumptionFrequency, 
+                             colour = factor(Gender))) + 
+  geom_smooth() +
+  scale_colour_discrete(name="Gender",
+                    breaks=c("1", "2"),
+                    labels=c("Male", "Female"))
+```
+There seem to be gender differences in the effect of age on drinking. Males
+experience a much stronger increase in drinking frequency at ages below ~25.
+After the age of 25, drinking levels move in parallel. 
+
+Generally, we can identify potential interaction effects with age, education, 
+social activity, and general life satisfaction. I now can try to investigate 
+this in a more formal way. For this I set up a multivariate linear 
+regression model.
+
+Alcohol consumption frequency is strictly seen measured on a 
+discrete scale (ranging from 1 to 7). It therefore is an ordinal variable. 
+Yet, given the high number of categories (7!), I treat the variable as 
+quasi-metric. This is a common practice in survey research. 
+
+As the previous analysis showed, countries differ strongly in their average 
+drinking frequency. This could be, for example, for cultural reasons. 
+To account for systematic country differences in drinking frequency, 
+I include country dummies in the regression. 
+```{r echo=FALSE}
+reg_base <- lm( AlcoholConsumptionFrequency ~ 1 + as.factor(Gender) + 
+                  YearsInEducation + Age + SocialContactFrequency + 
+                  GeneralSatisfaction + Religiosity + NetHouseholdIncome + 
+                  as.factor(Country), 
+           data = ess_alc)
+summary(reg_base)
+
+```
+The Adjusted R² of the model is 0.15. 
+This is not too bad for micro-level survey data.
+General life satisfaction does not prevail as independent predictor.
+We now proceed with testing some of the interactions with gender.
+
+```{r echo=FALSE}
+reg_interact <- lm(AlcoholConsumptionFrequency ~ 1 + as.factor(Gender) + 
+                     YearsInEducation + Age + SocialContactFrequency + 
+                     GeneralSatisfaction + Religiosity + NetHouseholdIncome + 
+                     as.factor(Country) + 
+                     as.factor(Gender):GeneralSatisfaction + 
+                     as.factor(Gender):YearsInEducation + 
+                     as.factor(Gender):SocialContactFrequency + 
+                     as.factor(Gender):Age, 
+                   data = ess_alc)
+summary(reg_interact)
+
+```
+There are significant interactions with education, age, and life satisfaction.
+Yet, the Adjusted R-squared only increases marginally.
+Let us now test some of the non-linear relationships identified before.
+For this, I inculde squared terms for the age, social contact, and 
+life satisfaction varaibles. 
+
+```{r echo=FALSE}
+ess_alc$age_sq <- ess_alc$Age^2
+ess_alc$SocialContactFrequency_sq <- ess_alc$SocialContactFrequency^2
+ess_alc$GeneralSatisfaction_sq <- ess_alc$GeneralSatisfaction^2
+
+reg_nonlin <- lm(AlcoholConsumptionFrequency ~ 1 + as.factor(Gender) + 
+                   YearsInEducation + Age + age_sq  + 
+                   SocialContactFrequency + SocialContactFrequency_sq + 
+                   GeneralSatisfaction + GeneralSatisfaction_sq + Religiosity + 
+                   NetHouseholdIncome +
+                   as.factor(Country) + as.factor(Gender):GeneralSatisfaction + 
+                   as.factor(Gender):YearsInEducation + as.factor(Gender):Age, 
+                 data = ess_alc)
+summary(reg_nonlin)
+```
+I can slightly improve the model by accounting for a non-linear effect of age, 
+social contact frequency, and general life satisfaction. 
+As a result, the Adjusted R-squared increases to 0.16.
+
+
+# Multivariate Analysis
+
+### Talk about some of the relationships you observed in this part of 
+### the investigation. Were there features that strengthened each other in terms
+### of looking at your feature(s) of interest?
+I found that in all countries covered by the data, male respondents drink 
+more frequently than female respondents. The good predictive power of gender is 
+confirmed by the regression models.
+Investigating potential interactions of other predictors with gender, 
+I found that there are significant interactions with education, 
+general life satisfaction, and age. Gender differences in drinking frequency 
+seem to narrow under higher levels of education. The effect of general life 
+satisfaction on drinking also is stronger among female respndents. 
+Contrarily, age seems to be a stronger predictor among men than among women. 
+Setting up a multivariate linear regression model confirms that there are some 
+non-linear relationships. Age, general life satisfaction, and social 
+contact frequency seem to affect drinking frequency in an inverted u-shaped 
+relationship.
+
+### Were there any interesting or surprising interactions between features?
+The non-linear relationship between social contact and drinking frequency seems 
+puzzling. I expected that drinking frequency linearly increases with the number 
+of social interactions. Yet, drinking frequency stagnates and then decreases at 
+high levels of social contact. I so far fail to find a sensible explanation 
+for this. 
+
+
+### Did you create any models with your dataset? Discuss the strengths 
+### and limitations of your model.
+I ran a number of linear regresssions to test the independent predictive power 
+of my variables, as well as some interactions I identified before. 
+Such a parametric linear model is rather easy to implement and is a fast way 
+to get at a model for inference (for example compared to semi- or 
+non-parametic models). The inclusion of country dummies as predictors 
+enabled me to account for systematic differences between countries. 
+Also, including squared terms for some predictors allowed me to model a 
+simple form of non-linearity (squared relationships).
+
+Yet, the models also make some restrictive assumptions. For most of the 
+parameters, it assumes a linear relationship. This usually is a good default, 
+but sometimes could miss some crucial (non-linear!) patterns in the data. 
+Also, including country dummies to account for systematic national differences 
+is very restrictive. Such a 'fixed-effects' approach assumes that countries are 
+strictly not comparable. It therefore might over-estimate the between-country 
+variance. Alternatively, one could model country differences with a 
+random effect. Such a random-effects specification would also allow us to 
+explain country differences by including country-level factors (e.g., wealth 
+of the country or level of social inequality). Finally, the linear regression 
+models employed assume that effects are homogeneous across countries. 
+Yet, it could be that certain varaibles are positivly related to drinking 
+frequency in the one country and negativly related in another country. 
+This could be accounted for by estimating random slopes.
+
+------
+
+# Final Plots and Summary
+
+### Plot One
+```{r echo=FALSE, Plot_One}
+ggplot(na.omit(ess_alc), aes(x = Age, y = AlcoholConsumptionFrequency, 
+                             colour = factor(Gender))) + 
+  geom_smooth() +  xlim(c(14, 100)) + 
+  ggtitle("Alcohol Consumption over the Life-Cycle") +
+  xlab("Age") +
+  ylab("Alcohol Consumption Frequency (1-Never/7-Every Day)") +
+  scale_color_discrete(name = "Gender",
+                       labels=c("Male", "Female"))
+
+
+```
+
+### Description One
+Plot One describes the development of alcohol consumption frequency over the 
+life-cycle, distinguishing the development among male and female respondents. 
+We see that there are significant differences between males and females. The 
+consumption level of males is well above the level of the female respondents. 
+This is mainly due to a much stronger increase in consumption among young males.
+Starting at the same level around the age of 15, male consumption increases 
+twice as much until the age of between 25-30. These differences remain 
+throughout the life-cycle. Yet, it is also interesting to see that after the 
+age of around 30, consumption levels move in parallel. This suggests that 
+gender differences are primarily relevant for the socialization into drinking 
+at young ages. Above the age of 30, there do not seem to be any gender 
+differences in the development of drinking habits. Therefore, if one could 
+account for a person's consumption frequency at the age of 25 or 30, an 
+analysis of respondents' dinking frequency above the age of 30 should not 
+detect gender differences anymore. Yet, such an analysis would require 
+longitudinal data. 
+
+### Plot Two
+```{r echo=FALSE, Plot_Two}
+
+ggplot(aggdata, aes(x = reorder(factor(Group.1), 
+                                ((AlcoholConsumptionFrequency/alc_tot)/Gender)), 
+                    y = AlcoholConsumptionFrequency/alc_tot, fill = Group.2)) + 
+  geom_bar(stat = "identity") +
+  coord_flip() +
+  geom_hline(yintercept = 0.5) +
+  ggtitle("Gender Differences in Alcohol Consumption Across Countries") +
+  ylab("Share at National Consumption Average") +
+  xlab("Countries") +
+  scale_fill_discrete(name = "Gender",
+                       labels=c("Male", "Female"))
+
+
+```
+
+### Description Two
+Plot Two describes the cross-national variation in the relevance of gender 
+differences for alcohol consumption frequency. The x-axis presents how much 
+male and female consumption rates are above or below the national average. 
+If males and females would drink equally often in a given coutry, each of 
+the colored bars would cover 50 per cent of the x-axis. Generally, we see 
+that male respondents drink more frequently across all countries. This is 
+demonstrated by the red (male) bar crossing the 50 per cent treshold in all 
+countries. Yet, there are cross country differences. Gender differences are 
+most relevant in Poland. Here, males report to consum much more than females. 
+Contrarily, gender differences are marginal in countries like Norway or Sweden. 
+The distribution of countries along the y-axis hints towards a potentially 
+interesting pattern. It seems that the more egalitarian countries, such as 
+Norway or Sweden, also have more 'egalitarian' (gender equal) drinking habits. 
+More conservative countries, such as Poland or Austria, have more unequal 
+drinking habits. 
+
+### Plot Three
+```{r echo=FALSE, Plot_Three}
+
+ggplot(na.omit(ess_alc), aes(x=SocialContactFrequency, 
+                             y=AlcoholConsumptionFrequency)) +   
+  geom_smooth(method="lm", colour = "black") +
+  geom_smooth(method = "lm", formula = y ~ x + I(x^2), colour = "green") +
+  facet_wrap(~ Country) +
+  ggtitle("The Effect of Social Contact on Drinking Frequency") +
+  ylab("Alcohol Consumption Frequency (1-Never/7-Every Day)") +
+  xlab("How often meet friends, relatives, or collegues? (1-Never/7-Every Day)") 
+
+```
+
+### Description Three
+Plot Three presents some further analysis of the effect of social contact on 
+alcohol consumption frequency. This is a relationship wich appeared somewhat 
+puzzling throughout the analysis. Accordingly, I detected some non-linearity in
+this relationship which I found puzzling. Plot Three investigates whether there 
+is heterogeneity in the effect of social contact over countries. It presents 
+the linear (black) and squared (green) relationship between social contact and 
+drinking frequency for each country separatly. The graph is interesting as it 
+seems that the effect might be different depending on the country a respondent 
+is living in. Focusing on the linear fit (black line), we see a clear positive 
+relationship in countries such as Austria or Ireland. However, there is no 
+significant relationship, for instance, in Germany and even a negative 
+one in Finland.
+
+Considering the linear (black) and the squared (green) fit together shows 
+that there is substantial overlap. Hence, non-linearity does not seem to be 
+relevant. While we found non-linearity in our pooled descriptive analysis as 
+well as in the linear regression model, Plot Three now suggests that this 
+could be explained by effect heterogeneity. I distrust the pooled plot on the
+bivariate relationship of social contact and drinking frequency from the 
+previous analysis, as it disregarded important differences between countries. 
+I also distrust the squared relationship detected in the liner regression model
+as this model assumed effect homogeneity across countries. Plot Three shows 
+that there seems to be a linear relationship between social contact and drinking
+frequency, which, however, varies substantially in its slope across countries. 
+This suggest that further regression models should include a random slope for 
+the social contact parameter. 
+
+
+------
+
+# Reflection
+This analysis posed a number of challenges. The nested structure of the dataset 
+(respondents within countries) provided a complex setting that required me to 
+think in parallel about several issues. Analyzing relationships in the data, 
+I circled around three challanges: interactions between variables, 
+non-linearity, and effect heterogeneity across countries. The analysis started 
+with a focus on interactions and non-linearity, and later brought in issues of 
+effect heterogeneity. I think all of these three points are important to 
+consider, yet an exploratory analysis develops quite differently depending on 
+the focus one puts. For sure, one has to keep in mind all these points, yet, 
+depending on the number of independent variables, it might be inefficient to 
+test for every potential interaction/non-linear relation/source of 
+heterogeneity. Here, I think, prior (theoretical) expectations are central 
+to narrow down the specific relationships one analyzes. I think in the future 
+it might make sense to formulate some hypotheses before beginning with such an 
+exploratory data analysis.
+
+In my analysis, I found gender to be a potentially important factor to 
+understand varying levels of drinking frequency. I think I was quite successful
+in demonstrating some interesting aspects of the relationship between gender 
+and alcohol consumption frequency. For some of the plots I created here it was
+quite challanging to reshape the data in a form that provides the quantities 
+of interest. This reminded me how important it is to know the available tools 
+to reshape data efficiently. 
+
+A natural extension of my analysis would be a regression models that includes 
+random slopes. For this, I also would need to investigate whether there is 
+effect heterogeneity with variables other than social contact. Also, I should 
+cross-validate my findings with a model that estimates country differences as 
+a random effect, rather than a fixed effect. Finally, longitudinal data would 
+be a great extension to my analyses. This would be a great setting to further 
+test some of the patterns I found, for example the varying role of gender over 
+the life-cycle. 
